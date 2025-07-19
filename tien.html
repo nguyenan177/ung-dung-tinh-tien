@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Ứng dụng tính tiền</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.2/css/all.min.css"/>
+  <style>
+    #history {
+      max-height: 300px;
+      overflow-y: auto;
+    }
+    ::-webkit-scrollbar {
+      width: 8px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f1f1;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #888;
+      border-radius: 4px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #555;
+    }
+    .description {
+      cursor: pointer;
+      padding: 2px 4px;
+      border-radius: 4px;
+    }
+    .description:hover {
+      background-color: #e5e7eb;
+    }
+    .description input {
+      width: 100%;
+      padding: 2px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+    }
+
+    #floatingMenuBtn {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 50;
+      background-color: #3b82f6;
+      color: white;
+      width: 50px;
+      height: 50px;
+      border-radius: 9999px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+      cursor: pointer;
+    }
+
+    #menuPopup {
+      position: fixed;
+      bottom: 80px;
+      right: 20px;
+      background-color: white;
+      border-radius: 0.75rem;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+      padding: 10px;
+      width: 240px;
+      display: none;
+      z-index: 40;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 flex items-center justify-center min-h-screen">
+  <div class="bg-white p-6 rounded-lg shadow-lg w-full max-w-md">
+    <h2 class="text-2xl font-bold text-center text-gray-800 mb-4">Ứng dụng tính tiền</h2>
+
+    <div class="mb-4">
+      <div class="relative">
+        <span class="absolute inset-y-0 left-0 flex items-center pl-3">
+          <i class="fas fa-money-bill-wave text-gray-400"></i>
+        </span>
+        <input type="text" id="amount" placeholder="Nhập số tiền" class="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"/>
+      </div>
+    </div>
+
+    <div class="flex justify-center gap-2 mb-4">
+      <button onclick="addMoney()" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition flex items-center gap-2">
+        <i class="fas fa-plus"></i> Cộng tiền
+      </button>
+      <button onclick="subtractMoney()" class="bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition flex items-center gap-2">
+        <i class="fas fa-minus"></i> Trừ tiền
+      </button>
+    </div>
+
+    <div id="result" class="text-xl font-semibold text-center text-gray-800 mb-4">Tổng: 0 VND</div>
+
+    <div id="history" class="bg-gray-50 p-4 rounded-lg">
+      <h3 class="text-lg font-semibold text-gray-700 mb-2">Lịch sử giao dịch</h3>
+      <ul id="historyList" class="text-gray-600"></ul>
+    </div>
+  </div>
+
+  <!-- Floating Button -->
+  <div id="floatingMenuBtn" onclick="toggleMenu()">
+    <i class="fas fa-bars"></i>
+  </div>
+
+  <!-- Popup Menu -->
+  <div id="menuPopup">
+    <div class="mb-2">
+      <input type="text" id="search" placeholder="🔍 Tìm mô tả..." class="w-full px-3 py-2 border rounded focus:outline-none focus:ring-2 focus:ring-blue-300" oninput="updateHistory()">
+    </div>
+    <button onclick="reset()" class="bg-gray-500 text-white w-full py-2 rounded hover:bg-gray-600 flex justify-center items-center gap-2">
+      <i class="fas fa-redo"></i> Đặt lại
+    </button>
+  </div>
+
+  <script>
+    let total = 0;
+    let history = [];
+
+    window.onload = () => {
+      const savedTotal = localStorage.getItem('total');
+      const savedHistory = localStorage.getItem('history');
+      if (savedTotal) total = parseInt(savedTotal);
+      if (savedHistory) history = JSON.parse(savedHistory);
+      updateResult();
+      updateHistory();
+    };
+
+    function saveToLocalStorage() {
+      localStorage.setItem('total', total);
+      localStorage.setItem('history', JSON.stringify(history));
+    }
+
+    function formatNumber(num) {
+      return num.toString().replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    }
+
+    function parseNumber(str) {
+      return parseFloat(str.replace(/\./g, '')) || 0;
+    }
+
+    document.getElementById('amount').addEventListener('input', function (e) {
+      let value = e.target.value.replace(/\./g, '');
+      if (!isNaN(value) && value !== '') {
+        e.target.value = formatNumber(value);
+      } else {
+        e.target.value = '';
+      }
+    });
+
+    function addMoney() {
+      const amount = parseNumber(document.getElementById('amount').value);
+      if (!isNaN(amount) && amount !== 0) {
+        total += amount;
+        history.push({ type: 'add', amount, description: 'Không có mô tả' });
+        updateResult();
+        updateHistory();
+        saveToLocalStorage();
+        document.getElementById('amount').value = '';
+      } else {
+        alert("Vui lòng nhập số tiền hợp lệ!");
+      }
+    }
+
+    function subtractMoney() {
+      const amount = parseNumber(document.getElementById('amount').value);
+      if (!isNaN(amount) && amount !== 0) {
+        total -= amount;
+        history.push({ type: 'subtract', amount, description: 'Không có mô tả' });
+        updateResult();
+        updateHistory();
+        saveToLocalStorage();
+        document.getElementById('amount').value = '';
+      } else {
+        alert("Vui lòng nhập số tiền hợp lệ!");
+      }
+    }
+
+    function deleteTransaction(index) {
+      const transaction = history[index];
+      total += transaction.type === 'subtract' ? transaction.amount : -transaction.amount;
+      history.splice(index, 1);
+      updateResult();
+      updateHistory();
+      saveToLocalStorage();
+    }
+
+    function editDescription(index) {
+      const transaction = history[index];
+      const li = document.getElementById(`history-item-${index}`);
+      const descriptionSpan = li.querySelector('.description');
+      const currentDescription = transaction.description;
+      descriptionSpan.innerHTML = `<input type="text" value="${currentDescription}" class="description-input">`;
+      const input = descriptionSpan.querySelector('input');
+      input.focus();
+
+      input.addEventListener('blur', function () {
+        const newDescription = input.value.trim() || 'Không có mô tả';
+        history[index].description = newDescription;
+        updateHistory();
+        saveToLocalStorage();
+      });
+
+      input.addEventListener('keypress', function (e) {
+        if (e.key === 'Enter') input.blur();
+      });
+    }
+
+    function reset() {
+      if (confirm('Bạn có chắc muốn đặt lại toàn bộ dữ liệu?')) {
+        total = 0;
+        history = [];
+        updateResult();
+        updateHistory();
+        saveToLocalStorage();
+        document.getElementById('amount').value = '';
+      }
+    }
+
+    function updateResult() {
+      document.getElementById('result').innerText = `Tổng: ${formatNumber(total)} VND`;
+    }
+
+    function updateHistory() {
+      const keyword = document.getElementById('search')?.value.toLowerCase() || '';
+      const historyList = document.getElementById('historyList');
+      historyList.innerHTML = '';
+      history.forEach((item, index) => {
+        if (item.description.toLowerCase().includes(keyword)) {
+          const li = document.createElement('li');
+          li.id = `history-item-${index}`;
+          li.className = 'py-2 border-b border-gray-200 flex justify-between items-center';
+          li.innerHTML = `
+            <span>${item.type === 'add' ? '+' : '-'} ${formatNumber(item.amount)} VND - 
+              <span class="description" onclick="editDescription(${index})">${item.description}</span>
+            </span>
+            <button onclick="deleteTransaction(${index})" class="text-red-500 hover:text-red-700">
+              <i class="fas fa-trash-alt"></i>
+            </button>`;
+          historyList.appendChild(li);
+        }
+      });
+    }
+
+    function toggleMenu() {
+      const popup = document.getElementById('menuPopup');
+      popup.style.display = popup.style.display === 'none' || popup.style.display === '' ? 'block' : 'none';
+    }
+
+    window.addEventListener('click', function(e) {
+      const menu = document.getElementById('menuPopup');
+      const button = document.getElementById('floatingMenuBtn');
+      if (!menu.contains(e.target) && !button.contains(e.target)) {
+        menu.style.display = 'none';
+      }
+    });
+  </script>
+</body>
+</html>
